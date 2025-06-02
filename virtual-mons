@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+#
+# Manages virtual monitors created by Xrandr
+#         _      __              __                                
+#  _   __(_)____/ /___  ______ _/ /     ____ ___  ____  ____  _____
+# | | / / / ___/ __/ / / / __ `/ /_____/ __ `__ \/ __ \/ __ \/ ___/
+# | |/ / / /  / /_/ /_/ / /_/ / /_____/ / / / / / /_/ / / / (__  ) 
+# |___/_/_/   \__/\__,_/\__,_/_/     /_/ /_/ /_/\____/_/ /_/____/  
+#                                                                  
+#
+# by StraikerD
+
+
+# set dmenu command
+DMENU_CMD="dmenu -l 10"
+
+
+# Check all dependencies
+which xrandr >/dev/null 2>&1 || (echo "Please install 'xorg-xrandr' package"; exit 1)
+which awk >/dev/null 2>&1 || (echo "Please install 'gawk' package"; exit 1)
+if [ -z $1 ]; then
+  which dmenu >/dev/null 2>&1 || (echo "Please install 'dmenu'"; exit 1)
+fi
+
+# Get the display resolution
+RESOLUTION=$(xrandr | awk '/*/ {print $1}')
+
+# Get width and height from resolution
+WIDTH=$(echo $RESOLUTION | cut -d'x' -f1)
+HEIGHT=$(echo $RESOLUTION | cut -d'x' -f2)
+
+# Get primary display name
+OUT=$(xrandr | awk '/primary/ {print $1}')
+
+echo "Display: $OUT"
+echo "Resolution: $RESOLUTION"
+echo
+
+
+# Modes
+clear_screens()
+{
+    SCREENS=$(xrandr --listmonitors | awk 'NR>1 { print $2 }' | sort -r)
+
+    for SCREEN in $SCREENS; do
+        xrandr --delmonitor $SCREEN
+    done
+}
+
+set_mono()
+{
+    clear_screens
+    xrandr --setmonitor main $WIDTH/1x$HEIGHT/1+0+0 $OUT
+}
+
+set_dual()
+{
+    clear_screens
+    W=$(expr $WIDTH / 2)
+    xrandr --setmonitor left $W/2x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor right $W/2x$HEIGHT/1+$W+0 $OUT
+}
+
+set_vertical()
+{
+  clear_screens
+  H=$(expr $HEIGHT / 2)
+  xrandr --setmonitor top $WIDTH/2x$H/1+0+0 $OUT
+  xrandr --setmonitor bot $WIDTH/2x$H/1+0+$H $OUT
+}
+
+set_triple()
+{
+    clear_screens
+    W=$(expr $WIDTH / 3)
+    xrandr --setmonitor left $W/3x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor middle $W/3x$HEIGHT/1+$W+0 $OUT
+    xrandr --setmonitor right $W/3x$HEIGHT/1+$(expr $W \* 2)+0 $OUT
+}
+
+set_middle()
+{
+    clear_screens
+    W=$(expr $WIDTH / 4)
+    xrandr --setmonitor left $W/4x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor middle $(expr $W \* 2)/1x$HEIGHT/1+$W+0 $OUT
+    xrandr --setmonitor right $W/4x$HEIGHT/1+$(expr $W \* 3)+0 $OUT
+}
+
+set_middle_x()
+{
+    clear_screens
+    W1=$HEIGHT
+    W2=$(expr $WIDTH - $HEIGHT \* 2)
+    xrandr --setmonitor left $W1/4x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor middle $W2/1x$HEIGHT/1+$W1+0 $OUT
+    xrandr --setmonitor right $W1/4x$HEIGHT/1+$(expr $W1 + $W2)+0 $OUT
+}
+
+set_ultra_left()
+{
+    clear_screens
+    W=$(expr $WIDTH / 3)
+    xrandr --setmonitor left $(expr $W \* 2)/1x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor right $W/3x$HEIGHT/1+$(expr $W \* 2)+0 $OUT
+}
+
+set_ultra_right()
+{
+    clear_screens
+    W=$(expr $WIDTH / 3)
+    xrandr --setmonitor left $W/3x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor right $(expr $W \* 2)/1x$HEIGHT/1+$W+0 $OUT
+}
+
+set_ultra_middle()
+{
+    clear_screens
+    W=$(expr $WIDTH / 5)
+    xrandr --setmonitor left $W/5x$HEIGHT/1+0+0 $OUT
+    xrandr --setmonitor middle $(expr $W \* 3)/1x$HEIGHT/1+$W+0 $OUT
+    xrandr --setmonitor right $W/5x$HEIGHT/1+$(expr $W \* 4)+0 $OUT
+}
+
+if [ -z $1 ]; then
+  RES=$(echo -e "mono\ndual\ntriple\nmiddle\nmiddle-x\nultra-left\nultra-right\nultra-middle" | sort | $DMENU_CMD)
+else
+  RES=$1
+fi
+
+case $RES in
+  clear)
+    clear_screens ;;
+  mono)
+    set_mono ;;
+  dual)
+    set_dual ;;
+  vertical)
+    set_vertical ;;
+  triple)
+    set_triple ;;
+  middle)
+    set_middle ;;
+  middle-x)
+    set_middle_x ;;
+  ultra-left)
+    set_ultra_left ;;
+  ultra-right)
+    set_ultra_right ;;
+  ultra-middle)
+    set_ultra_middle ;;
+  "")
+    ;;
+  *)
+    echo "Usage: $(basename $0) [MODE]"
+    echo "  Availiable modes:"
+    echo "    mono         - one monitor in default resolution $RESOLUTION"
+    echo "    dual         - dual $(expr $WIDTH / 2)x$HEIGHT screens"
+    echo "    vertical     - dual ${WIDTH}x$(expr $HEIGHT / 2) screens"
+    echo "    triple       - triple $(expr $WIDTH / 3)x$HEIGHT screens"
+    echo "    middle       - one screen $(expr $WIDTH / 2)x$HEIGHT in the center surrounded by two $(expr $WIDTH / 4)x$HEIGHT screens"
+    echo ""
+    echo "  Ultrawide modes:"
+    echo "    middle-x     - one screen $(expr $WIDTH - $HEIGHT \* 2)x$HEIGHT in the center surrounded by two ${HEIGHT}x$HEIGHT screens"
+    echo "    ultra-left   - $(expr $WIDTH / 3 \* 2)x$HEIGHT on left and $(expr $WIDTH / 3)x$HEIGHT on the right"
+    echo "    ultra-right  - $(expr $WIDTH / 3)x$HEIGHT on left and $(expr $WIDTH / 3 \* 2)x$HEIGHT on the right"
+    echo "    ultra-middle - one screen $(expr $WIDTH / 5 \* 3)x$HEIGHT in the center and two $(expr $WIDTH / 5)x$HEIGHT on the sides"
+    ;;
+esac

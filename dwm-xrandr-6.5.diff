@@ -1,0 +1,110 @@
+diff --git a/config.mk b/config.mk
+index 8efca9a..133ede7 100644
+--- a/config.mk
++++ b/config.mk
+@@ -11,8 +11,12 @@ X11INC = /usr/X11R6/include
+ X11LIB = /usr/X11R6/lib
+ 
+ # Xinerama, comment if you don't want it
+-XINERAMALIBS  = -lXinerama
+-XINERAMAFLAGS = -DXINERAMA
++#XINERAMALIBS  = -lXinerama
++#XINERAMAFLAGS = -DXINERAMA
++
++# Xrandr, comment if you don't want it
++XRANDRLIBS = -lXrandr
++XRANDRFLAGS = -DXRANDR
+ 
+ # freetype
+ FREETYPELIBS = -lfontconfig -lXft
+@@ -23,10 +27,10 @@ FREETYPEINC = /usr/include/freetype2
+ 
+ # includes and libs
+ INCS = -I${X11INC} -I${FREETYPEINC}
+-LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS}
++LIBS = -L${X11LIB} -lX11 ${XRANDRLIBS} ${FREETYPELIBS}
+ 
+ # flags
+-CPPFLAGS = -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700L -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
++CPPFLAGS = -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700L -DVERSION=\"${VERSION}\" ${XRANDRFLAGS}
+ #CFLAGS   = -g -std=c99 -pedantic -Wall -O0 ${INCS} ${CPPFLAGS}
+ CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os ${INCS} ${CPPFLAGS}
+ LDFLAGS  = ${LIBS}
+diff --git a/dwm.c b/dwm.c
+index 01dd2ea..15fa08a 100644
+--- a/dwm.c
++++ b/dwm.c
+@@ -40,6 +40,9 @@
+ #ifdef XINERAMA
+ #include <X11/extensions/Xinerama.h>
+ #endif /* XINERAMA */
++#ifdef XRANDR
++#include <X11/extensions/Xrandr.h>
++#endif /* XRANDR */
+ #include <X11/Xft/Xft.h>
+ 
+ #include "drw.h"
+@@ -2036,7 +2039,62 @@ updategeom(void)
+ {
+ 	int dirty = 0;
+ 
+-#ifdef XINERAMA
++#ifdef XRANDR
++  int i, j, n, nn;
++  Client *c;
++  Monitor *m;
++  XRRMonitorInfo *info = XRRGetMonitors(dpy, root, True, &nn);
++  XRRMonitorInfo *unique = NULL;
++
++  for (n = 0, m = mons; m; m = m->next, n++);
++  /* only consider unique geometries as separate screens */
++  unique = ecalloc(nn, sizeof(XRRMonitorInfo));
++  for (i = 0, j = 0; i < nn; i++)
++    // if (isuniquegeom(unique, j, &info[i]))
++    memcpy(&unique[j++], &info[i], sizeof(XRRMonitorInfo));
++  XRRFreeMonitors(info);
++  nn = j;
++  if (n <= nn) {
++    for (i = 0; i < (nn - n); i++) {
++      for (m = mons; m && m->next; m = m->next);
++      if (m)
++        m->next = createmon();
++      else
++        mons = createmon();
++    }
++    for (i = 0, m = mons; i < nn && m; m = m->next, i++)
++      if (i >= n
++      || unique[i].x != m->mx || unique[i].y != m->my
++      || unique[i].width != m->mw || unique[i].height != m->mh)
++      {
++        dirty = 1;
++        m->num = i;
++        m->mx = m->wx = unique[i].x;
++        m->my = m->wy = unique[i].y;
++        m->mw = m->ww = unique[i].width;
++        m->mh = m->wh = unique[i].height;
++        updatebarpos(m);
++      }
++  } else { /* less monitors available nn < n */
++    for (i = nn; i < n; i++) {
++      for (m = mons; m && m->next; m = m->next);
++      while ((c = m->clients)) {
++        dirty = 1;
++        m->clients = c->next;
++        detachstack(c);
++        c->mon = mons;
++        attachbottom(c);
++        attachstack(c);
++      }
++      if (m == selmon)
++        selmon = mons;
++      cleanupmon(m);
++    }
++  }
++  XRRFreeMonitors(unique);
++
++  if (False)
++#elif defined(XINERAMA)
+ 	if (XineramaIsActive(dpy)) {
+ 		int i, j, n, nn;
+ 		Client *c;
