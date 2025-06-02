@@ -30,6 +30,11 @@ virtual-mons -h
 ![](screenshots/ultrawide.png)
 
 ---
+#### Dependecies
+- xrandr
+- awk
+- dmenu (optional)
+
 #### Installation
 1. Just apply patch to dwm
 ```
