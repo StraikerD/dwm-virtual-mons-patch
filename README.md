@@ -30,7 +30,7 @@ virtual-mons -h
 ![](screenshots/ultrawide.png)
 
 ---
-#### Dependecies
+#### Dependencies
 - xrandr
 - awk
 - dmenu (optional)
